@@ -12,7 +12,7 @@ import Hero
 
 -- General options
 
-frameRate = 25
+frameRate = 0.1
 keyCodeA = Char.toCode 'w'
 keyCodeB = Char.toCode 'd'
 
@@ -58,12 +58,12 @@ type Input = { timeDelta:Float, userInput:UserInput }
 --     type GameState = { objects : [(Float,Float)] }
 --     defaultGame = { objects = [] }
 
+data CurrentWorld = Immortal | Fairy
 
-
-type GameState = {fairy : Fairy.World, immortal : Immortal.World, hero : Hero.State}
+type GameState = {fairy : Fairy.World, immortal : Immortal.World, hero : Hero.State, curr : CurrentWorld}
 
 defaultGame : GameState
-defaultGame = {fairy = Fairy.default, immortal = Immortal.default, hero = Hero.default}
+defaultGame = {fairy = Fairy.default, immortal = Immortal.default, hero = Hero.default, curr = Fairy}
 
 
 -- Part 3: Update the game ---------------------------------------------------
@@ -74,12 +74,16 @@ defaultGame = {fairy = Fairy.default, immortal = Immortal.default, hero = Hero.d
 --       you defined in parts 1 and 2. Maybe use some helper functions
 --       to break up the work, stepping smaller parts of the game.
 
+swapWorld w = 
+    case w of 
+      Fairy -> Immortal 
+      Immortal -> Fairy
 
 stepGame : Input -> GameState -> GameState
 stepGame {timeDelta,userInput} gameState = 
     case userInput.action of
       Just A -> {gameState | hero <- Hero.getOlder gameState.hero}
-      Just B -> {gameState | hero <- Hero.getYounger gameState.hero}
+      Just B -> {gameState | curr <- swapWorld gameState.curr}
       Nothing -> gameState 
                 
 
@@ -90,8 +94,24 @@ stepGame {timeDelta,userInput} gameState =
 
 -- Task: redefine `display` to use the GameState you defined in part 2.
 
+fairyColor = rgb 56 200 56
+immortalColor = rgb 200 56 200
+
+drawBackground : (Int, Int) -> GameState -> Form
+drawBackground  (w, h) st =
+    case st.curr of
+      Fairy -> 
+          filled fairyColor <| rect (toFloat w) (toFloat h)
+      Immortal -> 
+          filled immortalColor <| rect (toFloat w) (toFloat h)
+                         
+
 display : (Int,Int) -> GameState -> Element
-display (w,h) gameState = asText (String.concat ["Jeanne is ", (String.show gameState.hero.age)])
+display (w,h) gameState = 
+    let background = drawBackground (w, h) gameState in
+    container w h middle <|
+              collage w h [background, toForm <| asText (String.concat ["Jeanne is ", (String.show gameState.hero.age)])]
+
 
 delta = fps frameRate
 input = sampleOn delta (lift2 Input delta userInput)
