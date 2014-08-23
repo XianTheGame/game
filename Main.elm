@@ -12,7 +12,7 @@ import Hero
 
 -- General options
 
-frameRate = 0.1
+frameRate = 30
 keyCodeA = Char.toCode 'w'
 keyCodeB = Char.toCode 'd'
 
@@ -28,17 +28,10 @@ type Dir = { x : Int, y : Int}
 
 data Button = A | B
 
-type UserInput = {dir : Dir, action : Maybe Button}
-
-getAction : Bool -> Bool -> Maybe Button
-getAction a b = 
-    case (a, b) of
-      (True, _) -> Just A
-      (_, True) -> Just B
-      (_, _) -> Nothing
+type UserInput = {dir : Dir, a : Bool, b : Bool}
 
 userInput : Signal UserInput
-userInput = lift3 (\pos a b -> {dir = pos, action = getAction a b}) 
+userInput = lift3 (\pos a b -> {dir = pos, a = a, b = b}) 
             Keyboard.arrows (Keyboard.isDown keyCodeA) (Keyboard.isDown keyCodeB)
 
 type Input = { timeDelta:Float, userInput:UserInput }
@@ -81,12 +74,10 @@ swapWorld w =
 
 stepGame : Input -> GameState -> GameState
 stepGame {timeDelta,userInput} gameState = 
-    case userInput.action of
-      Just A -> {gameState | hero <- Hero.getOlder gameState.hero}
-      Just B -> {gameState | curr <- swapWorld gameState.curr}
-      Nothing -> gameState 
-                
-
+    case (userInput.a, userInput.b) of
+      (True, _) -> {gameState | hero <- Hero.getOlder gameState.hero}
+      (_, True) -> {gameState | curr <- swapWorld gameState.curr}
+      (False, False) -> gameState 
 
 -- Part 4: Display the game --------------------------------------------------
 
@@ -114,7 +105,13 @@ display (w,h) gameState =
 
 
 delta = fps frameRate
-input = sampleOn delta (lift2 Input delta userInput)
+input = lift2 Input delta (lift3 UserInput (sampleOn delta Keyboard.arrows) (singleOut keyCodeA) (singleOut keyCodeB))
+
+cfalse : Signal Bool
+cfalse = sampleOn delta <| constant False
+
+singleOut : Keyboard.KeyCode -> Signal Bool
+singleOut k = merge (dropRepeats <| sampleOn delta <| Keyboard.isDown k) cfalse
 
 gameState = foldp stepGame defaultGame input
 
